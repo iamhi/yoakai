@@ -1,0 +1,31 @@
+{
+  "name": "yoakai",
+  "version": "1.0.0",
+  "description": "Zero-dependency CLI + plugin to run Google Antigravity (agy) headlessly with relative prompt files, persistent model/effort configurations, and auto-approved permissions.",
+  "bin": {
+    "yoakai": "./bin/yoakai.js"
+  },
+  "type": "module",
+  "files": [
+    "bin",
+    "skills",
+    "commands",
+    ".claude-plugin",
+    "readme.md"
+  ],
+  "scripts": {
+    "test": "node --test test/yoakai.test.js"
+  },
+  "keywords": [
+    "antigravity",
+    "agy",
+    "headless",
+    "ai",
+    "cli",
+    "claude-plugin"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

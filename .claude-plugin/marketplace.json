@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "yoakai",
+  "owner": {
+    "name": "iamhi"
+  },
+  "plugins": [
+    {
+      "name": "yoakai",
+      "source": "./",
+      "description": "Run Google Antigravity (agy) headlessly with relative prompt files, persistent model/effort configuration, and auto-approved permissions.",
+      "category": "productivity"
+    }
+  ]
+}

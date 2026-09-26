@@ -1,0 +1,12 @@
+{
+  "name": "yoakai",
+  "version": "1.0.0",
+  "description": "Run Google Antigravity (agy) headlessly with relative prompt files, persistent model/effort configuration, and auto-approved permissions.",
+  "author": {
+    "name": "iamhi"
+  },
+  "homepage": "https://github.com/iamhi/yoakai",
+  "repository": "https://github.com/iamhi/yoakai",
+  "license": "MIT",
+  "keywords": ["antigravity", "agy", "headless", "ai", "cli"]
+}
