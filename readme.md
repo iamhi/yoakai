@@ -70,18 +70,35 @@ yoakai ./prompt.md --no-permissions
 
 ## Configuration
 
-Persist your preferred default model and effort across sessions:
+Persist your preferred default model, harness, and reasoning effort across sessions:
 
 ```sh
-# Set default model (supports underscores or hyphens)
+# Set default model (supports exact names, quotes, hyphens, or underscores)
+yoakai config.model "GPT-6 Luna"
+yoakai config.model gemini-3.8-flash
 yoakai config.model gemini_3.8_flash
-yoakai config.model gemini-3.8-flash-high
+
+# Or via `config set`
+yoakai config set model "GPT-6 Luna"
+
+# Get active model
+yoakai config.model
+yoakai config get model
+
+# Configure AI harness (agy, copilot, claude)
+yoakai config.harness copilot
+yoakai config.harness claude
+yoakai config.harness agy
 
 # Set default reasoning effort
 yoakai config.effort high
 
-# Check available models
+# Check available models (lists Google, Anthropic, OpenAI & custom models; supports --json)
 yoakai models
+yoakai models --json
+
+# Check available AI harnesses
+yoakai harnesses
 
 # View active configuration
 yoakai config

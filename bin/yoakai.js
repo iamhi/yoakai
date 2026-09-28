@@ -32,15 +32,46 @@ const readJsonSafe = (path) => {
   return {}
 }
 
+const DEFAULT_HARNESS = 'agy'
 const DEFAULT_MODEL = 'gemini-3.8-flash'
 const DEFAULT_EFFORT = 'high'
 const DEFAULT_OUTPUT_FORMAT = 'text'
+
+const BUILTIN_HARNESSES = [
+  { id: 'agy', name: 'Google Antigravity CLI', default: true },
+  { id: 'copilot', name: 'GitHub Copilot CLI', default: false },
+  { id: 'claude', name: 'Claude Code CLI', default: false }
+]
+
+const BUILTIN_MODELS = [
+  // Google / Antigravity
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google', harness: 'agy', default: true },
+  { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', provider: 'Google', harness: 'agy' },
+  { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', provider: 'Google', harness: 'agy' },
+  { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)', provider: 'Google', harness: 'agy' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'Google', harness: 'agy' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google', harness: 'agy' },
+
+  // Anthropic / Claude
+  { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', harness: 'claude' },
+  { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', harness: 'claude' },
+  { id: 'claude-3-5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', harness: 'claude' },
+  { id: 'claude-opus-4', name: 'Claude Opus 4', provider: 'Anthropic', harness: 'claude' },
+
+  // OpenAI / Copilot
+  { id: 'GPT-6 Luna', name: 'GPT-6 Luna', provider: 'OpenAI', harness: 'copilot' },
+  { id: 'gpt-4o', name: 'GPT-4o', provider: 'OpenAI', harness: 'copilot' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', harness: 'copilot' },
+  { id: 'o3-mini', name: 'o3-mini', provider: 'OpenAI', harness: 'copilot' },
+  { id: 'o1', name: 'o1', provider: 'OpenAI', harness: 'copilot' }
+]
 
 const loadConfig = () => {
   const globalConfig = readJsonSafe(getGlobalConfigPath())
   const localPath = getLocalConfigPath()
   const localConfig = localPath ? readJsonSafe(localPath) : {}
   return {
+    harness: DEFAULT_HARNESS,
     model: DEFAULT_MODEL,
     effort: DEFAULT_EFFORT,
     outputFormat: DEFAULT_OUTPUT_FORMAT,
@@ -55,9 +86,81 @@ const saveGlobalConfig = (config) => {
   writeFileSync(targetPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
 }
 
-const normalizeSlug = (val) => {
+const normalizeModel = (val) => {
   if (typeof val !== 'string') return val
-  return val.trim().replace(/_/g, '-')
+  const trimmed = val.trim().replace(/^["'](.*)["']$/, '$1')
+  return trimmed.replace(/_/g, '-')
+}
+
+const normalizeConfigValue = (key, val) => {
+  if (typeof val !== 'string') return val
+  const trimmed = val.trim().replace(/^["'](.*)["']$/, '$1')
+  if (key === 'model') {
+    return normalizeModel(trimmed)
+  }
+  if (key === 'harness') {
+    return trimmed.toLowerCase()
+  }
+  return trimmed
+}
+
+const getAvailableModels = (config = {}) => {
+  const currentModel = config.model || DEFAULT_MODEL
+  const models = BUILTIN_MODELS.map(m => ({
+    ...m,
+    isCurrent: m.id === currentModel
+  }))
+
+  if (!models.some(m => m.id === currentModel)) {
+    models.push({
+      id: currentModel,
+      name: currentModel,
+      provider: 'Custom',
+      harness: config.harness || DEFAULT_HARNESS,
+      isCurrent: true
+    })
+  }
+
+  return models
+}
+
+const printAvailableModels = (config = {}) => {
+  const models = getAvailableModels(config)
+  const currentModel = config.model || DEFAULT_MODEL
+
+  console.log('Available models:\n')
+
+  const groups = {
+    'Google (agy)': models.filter(m => m.provider === 'Google'),
+    'Anthropic (claude)': models.filter(m => m.provider === 'Anthropic'),
+    'OpenAI (copilot)': models.filter(m => m.provider === 'OpenAI'),
+    'Custom': models.filter(m => m.provider === 'Custom')
+  }
+
+  const maxIdLen = Math.max(...models.map(m => m.id.length), 22)
+
+  for (const [groupName, groupModels] of Object.entries(groups)) {
+    if (groupModels.length === 0) continue
+    console.log(`  ${groupName}:`)
+    for (const m of groupModels) {
+      const marker = m.id === currentModel ? '*' : ' '
+      const currentLabel = m.id === currentModel ? (m.default ? '(default, current)' : '(current)') : (m.default ? '(default)' : '')
+      const paddedId = m.id.padEnd(maxIdLen + 2)
+      console.log(`   ${marker} ${paddedId} ${m.name} ${currentLabel}`.trimEnd())
+    }
+    console.log('')
+  }
+}
+
+const printAvailableHarnesses = (config = {}) => {
+  const currentHarness = config.harness || DEFAULT_HARNESS
+  console.log('Available harnesses:\n')
+  for (const h of BUILTIN_HARNESSES) {
+    const marker = h.id === currentHarness ? '*' : ' '
+    const label = h.id === currentHarness ? (h.default ? '(default, current)' : '(current)') : (h.default ? '(default)' : '')
+    console.log(`   ${marker} ${h.id.padEnd(12)} ${h.name} ${label}`.trimEnd())
+  }
+  console.log('')
 }
 
 const printUsage = () => {
@@ -67,11 +170,13 @@ const printUsage = () => {
   yoakai config set <key> <value>
   yoakai config get <key>
   yoakai config [list]
-  yoakai models
+  yoakai models [--json]
+  yoakai harnesses [--json]
 
 Options:
   --output-format <text|json|stream-json>  Output format (default: text)
-  --model <slug>                           Model slug (default: gemini-3.8-flash)
+  --harness <agy|copilot|claude>           AI harness (default: agy)
+  --model <name|slug>                      Model name/slug (default: gemini-3.8-flash)
   --effort <low|medium|high>               Reasoning effort (default: high)
   --no-permissions, --no-skip-permissions  Do not auto-approve permissions
   -h, --help                               Show this help message
@@ -79,10 +184,14 @@ Options:
 
 Examples:
   yoakai ./prompt.md
-  yoakai ./prompt.md --model claude-sonnet-4-6
-  yoakai config.model gemini_3.8_flash
+  yoakai ./prompt.md --model "GPT-6 Luna"
+  yoakai ./prompt.md --model claude-3-7-sonnet
+  yoakai config.model "GPT-6 Luna"
+  yoakai config.model gemini-3.8-flash
+  yoakai config.harness copilot
   yoakai config.effort high
-  yoakai models`)
+  yoakai models
+  yoakai harnesses`)
 }
 
 const printVersion = () => {
@@ -100,16 +209,50 @@ const handleConfigCommand = (args) => {
   const globalPath = getGlobalConfigPath()
   const currentGlobal = readJsonSafe(globalPath)
 
+  if (first === 'config.models' || (first === 'config' && args[1] === 'models')) {
+    const currentConfig = loadConfig()
+    if (args.includes('--json')) {
+      console.log(JSON.stringify(getAvailableModels(currentConfig), null, 2))
+    } else {
+      printAvailableModels(currentConfig)
+    }
+    return
+  }
+
+  if (first === 'config.harnesses' || (first === 'config' && args[1] === 'harnesses')) {
+    const currentConfig = loadConfig()
+    if (args.includes('--json')) {
+      console.log(JSON.stringify(BUILTIN_HARNESSES, null, 2))
+    } else {
+      printAvailableHarnesses(currentConfig)
+    }
+    return
+  }
+
   if (first.startsWith('config.')) {
-    const rawKey = first.slice(7)
-    const key = rawKey === 'output-format' ? 'outputFormat' : rawKey
-    const value = args[1]
+    const rest = first.slice(7)
+    let key
+    let value
+    if (rest.includes('=')) {
+      const eqIdx = rest.indexOf('=')
+      const rawKey = rest.slice(0, eqIdx)
+      key = rawKey === 'output-format' ? 'outputFormat' : rawKey
+      value = rest.slice(eqIdx + 1)
+    } else {
+      const rawKey = rest
+      key = rawKey === 'output-format' ? 'outputFormat' : rawKey
+      if (args.length > 1) {
+        value = args.slice(1).join(' ')
+      }
+    }
+
     if (value === undefined) {
       const current = loadConfig()
       console.log(current[key] ?? '')
       return
     }
-    const normalized = key === 'model' ? normalizeSlug(value) : value
+
+    const normalized = normalizeConfigValue(key, value)
     currentGlobal[key] = normalized
     saveGlobalConfig(currentGlobal)
     console.log(`Set ${key} = ${normalized}`)
@@ -124,23 +267,25 @@ const handleConfigCommand = (args) => {
       return
     }
     if (action === 'get') {
-      const key = args[2]
-      if (!key) {
+      const rawKey = args[2]
+      if (!rawKey) {
         console.error('Error: missing key for config get')
         process.exit(1)
       }
+      const key = rawKey === 'output-format' ? 'outputFormat' : rawKey
       const config = loadConfig()
       console.log(config[key] ?? '')
       return
     }
     if (action === 'set') {
-      const key = args[2]
-      const val = args[3]
-      if (!key || val === undefined) {
+      const rawKey = args[2]
+      if (!rawKey || args[3] === undefined) {
         console.error('Error: usage is "yoakai config set <key> <value>"')
         process.exit(1)
       }
-      const normalized = key === 'model' ? normalizeSlug(val) : val
+      const key = rawKey === 'output-format' ? 'outputFormat' : rawKey
+      const val = args.slice(3).join(' ')
+      const normalized = normalizeConfigValue(key, val)
       currentGlobal[key] = normalized
       saveGlobalConfig(currentGlobal)
       console.log(`Set ${key} = ${normalized}`)
@@ -149,6 +294,42 @@ const handleConfigCommand = (args) => {
     console.error(`Error: unknown config action "${action}"`)
     process.exit(1)
   }
+}
+
+const handleModelsCommand = (args = []) => {
+  const currentConfig = loadConfig()
+  const wantsJson = args.includes('--json')
+
+  if (wantsJson) {
+    console.log(JSON.stringify(getAvailableModels(currentConfig), null, 2))
+    return
+  }
+
+  // If harness is agy, delegate to agy models if agy is available and succeeds
+  if (currentConfig.harness === 'agy') {
+    const result = spawnSync(agyCmd, ['models'], {
+      stdio: 'inherit',
+      shell: isWindows
+    })
+    if (!result.error && result.status === 0) {
+      return
+    }
+  }
+
+  // Fallback to built-in available models list
+  printAvailableModels(currentConfig)
+}
+
+const handleHarnessesCommand = (args = []) => {
+  const currentConfig = loadConfig()
+  const wantsJson = args.includes('--json')
+
+  if (wantsJson) {
+    console.log(JSON.stringify(BUILTIN_HARNESSES, null, 2))
+    return
+  }
+
+  printAvailableHarnesses(currentConfig)
 }
 
 const rawArgs = process.argv.slice(2)
@@ -164,15 +345,13 @@ if (rawArgs.includes('-v') || rawArgs.includes('--version')) {
 }
 
 if (rawArgs[0] === 'models') {
-  const result = spawnSync(agyCmd, ['models'], {
-    stdio: 'inherit',
-    shell: isWindows
-  })
-  if (result.error) {
-    console.error(`Error executing agy: ${result.error.message}`)
-    process.exit(1)
-  }
-  process.exit(result.status ?? 0)
+  handleModelsCommand(rawArgs.slice(1))
+  process.exit(0)
+}
+
+if (rawArgs[0] === 'harnesses') {
+  handleHarnessesCommand(rawArgs.slice(1))
+  process.exit(0)
 }
 
 if (rawArgs[0].startsWith('config.') || rawArgs[0] === 'config') {
@@ -185,6 +364,10 @@ let promptFilePath = null
 const forwardedArgs = []
 let skipNext = false
 let skipPermissions = true
+let cliModel = null
+let cliEffort = null
+let cliOutputFormat = null
+let cliHarness = null
 
 const config = loadConfig()
 
@@ -202,6 +385,30 @@ for (let i = 0; i < rawArgs.length; i++) {
 
   if (arg === '--dangerously-skip-permissions') {
     skipPermissions = true
+    continue
+  }
+
+  if (arg === '--model') {
+    cliModel = rawArgs[i + 1]
+    skipNext = true
+    continue
+  }
+
+  if (arg === '--effort') {
+    cliEffort = rawArgs[i + 1]
+    skipNext = true
+    continue
+  }
+
+  if (arg === '--output-format') {
+    cliOutputFormat = rawArgs[i + 1]
+    skipNext = true
+    continue
+  }
+
+  if (arg === '--harness') {
+    cliHarness = rawArgs[i + 1]
+    skipNext = true
     continue
   }
 
@@ -245,27 +452,33 @@ try {
   process.exit(1)
 }
 
+const activeHarness = (cliHarness || config.harness || DEFAULT_HARNESS).toLowerCase()
+const activeModel = cliModel ? normalizeModel(cliModel) : (config.model || DEFAULT_MODEL)
+const activeEffort = cliEffort || config.effort || DEFAULT_EFFORT
+const activeOutputFormat = cliOutputFormat || config.outputFormat || DEFAULT_OUTPUT_FORMAT
+
+if (activeHarness !== 'agy') {
+  const harnessCmd = isWindows ? `${activeHarness}.cmd` : activeHarness
+  const probe = spawnSync(harnessCmd, ['--version'], { shell: isWindows })
+  if (probe.error && probe.error.code === 'ENOENT') {
+    console.error(`Error: "${activeHarness}" harness selected, but "${activeHarness}" command not found on PATH.`)
+    process.exit(1)
+  }
+}
+
 const agyArgs = ['-p', promptContent]
 
 if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
   agyArgs.push('--dangerously-skip-permissions')
 }
 
-// Model resolution: CLI flag > config
-if (!forwardedArgs.includes('--model') && config.model) {
-  agyArgs.push('--model', normalizeSlug(config.model))
+agyArgs.push('--model', normalizeModel(activeModel))
+
+if (activeEffort) {
+  agyArgs.push('--effort', activeEffort)
 }
 
-// Effort resolution: CLI flag > config
-if (!forwardedArgs.includes('--effort') && config.effort) {
-  agyArgs.push('--effort', config.effort)
-}
-
-// Output format: CLI flag > config > default 'text'
-const hasOutputFormat = forwardedArgs.includes('--output-format')
-if (!hasOutputFormat) {
-  agyArgs.push('--output-format', config.outputFormat || 'text')
-}
+agyArgs.push('--output-format', activeOutputFormat)
 
 agyArgs.push(...forwardedArgs)
 

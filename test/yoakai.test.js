@@ -174,3 +174,98 @@ test('propagates non-zero exit code from agy', () => {
     }
   )
 })
+
+test('supports configuring custom models like "GPT-6 Luna" and "gemini-3.8-flash"', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Test custom model', 'utf8')
+
+  // Set model to "GPT-6 Luna"
+  const setOutput1 = runYoakai(['config.model', 'GPT-6 Luna'], baseDir, env)
+  assert.match(setOutput1, /Set model = GPT-6 Luna/)
+
+  // Get model via config.model
+  const getOutput1 = runYoakai(['config.model'], baseDir, env)
+  assert.equal(getOutput1.trim(), 'GPT-6 Luna')
+
+  // Run and check args passed to agy
+  runYoakai(['prompt.md'], baseDir, env)
+  let loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--model'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'GPT-6 Luna')
+
+  // Set model to "gemini-3.8-flash"
+  const setOutput2 = runYoakai(['config.model', 'gemini-3.8-flash'], baseDir, env)
+  assert.match(setOutput2, /Set model = gemini-3.8-flash/)
+
+  const getOutput2 = runYoakai(['config.model'], baseDir, env)
+  assert.equal(getOutput2.trim(), 'gemini-3.8-flash')
+
+  // Test config set model syntax
+  const setOutput3 = runYoakai(['config', 'set', 'model', 'GPT-6 Luna'], baseDir, env)
+  assert.match(setOutput3, /Set model = GPT-6 Luna/)
+
+  const getOutput3 = runYoakai(['config', 'get', 'model'], baseDir, env)
+  assert.equal(getOutput3.trim(), 'GPT-6 Luna')
+})
+
+test('supports configuring harness (agy, copilot, claude)', () => {
+  const { baseDir, env } = setupTestEnv()
+
+  // Default harness is agy
+  const defaultHarness = runYoakai(['config.harness'], baseDir, env)
+  assert.equal(defaultHarness.trim(), 'agy')
+
+  // Set harness to copilot
+  const setCopilot = runYoakai(['config.harness', 'copilot'], baseDir, env)
+  assert.match(setCopilot, /Set harness = copilot/)
+
+  const getCopilot = runYoakai(['config.harness'], baseDir, env)
+  assert.equal(getCopilot.trim(), 'copilot')
+
+  // Set harness to claude via config set
+  const setClaude = runYoakai(['config', 'set', 'harness', 'claude'], baseDir, env)
+  assert.match(setClaude, /Set harness = claude/)
+
+  const getClaude = runYoakai(['config', 'get', 'harness'], baseDir, env)
+  assert.equal(getClaude.trim(), 'claude')
+
+  // Listed in full config
+  const fullConfig = JSON.parse(runYoakai(['config'], baseDir, env))
+  assert.equal(fullConfig.harness, 'claude')
+})
+
+test('lists available models with fallback when agy is not installed', () => {
+  const { baseDir, configHome } = setupTestEnv()
+  // Clean PATH without mock agy
+  const cleanEnv = {
+    PATH: '/usr/bin:/bin',
+    XDG_CONFIG_HOME: configHome
+  }
+
+  const output = runYoakai(['models'], baseDir, cleanEnv)
+  assert.match(output, /Available models:/)
+  assert.match(output, /gemini-3\.8-flash/)
+  assert.match(output, /claude-3-7-sonnet/)
+  assert.match(output, /GPT-6 Luna/)
+})
+
+test('lists available models in json format', () => {
+  const { baseDir, env } = setupTestEnv()
+  const output = runYoakai(['models', '--json'], baseDir, env)
+  const models = JSON.parse(output)
+  assert.ok(Array.isArray(models))
+  assert.ok(models.some(m => m.id === 'gemini-3.8-flash'))
+  assert.ok(models.some(m => m.id === 'GPT-6 Luna'))
+  assert.ok(models.some(m => m.id === 'claude-3-7-sonnet'))
+})
+
+test('lists available harnesses', () => {
+  const { baseDir, env } = setupTestEnv()
+  const output = runYoakai(['harnesses'], baseDir, env)
+  assert.match(output, /Available harnesses:/)
+  assert.match(output, /agy/)
+  assert.match(output, /copilot/)
+  assert.match(output, /claude/)
+})
+

@@ -28,11 +28,11 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
 
 1. **`bin/yoakai.js`** — the entire CLI implementation with zero runtime dependencies. Uses only Node.js standard libraries (`node:fs`, `node:path`, `node:child_process`, `node:os`, `node:process`).
    - Manages configuration (`~/.config/yoakai/config.json` and local `.yoakairc` / `.yoakai.json`).
-   - Handles `yoakai config.model <value>`, `yoakai config.effort <value>`, `yoakai models`.
+   - Handles `yoakai config.model <value>` (e.g. `"GPT-6 Luna"`, `"gemini-3.8-flash"`), `yoakai config.harness <value>` (`agy`, `copilot`, `claude`), `yoakai config.effort <value>`, `yoakai models [--json]`, `yoakai harnesses`.
    - Reads relative prompt file, forwards prompt content via `-p "<content>"`, appends `--dangerously-skip-permissions` (unless disabled with `--no-permissions`), and passes through extra flags to `agy`.
    - Spawns `agy` with `stdio: 'inherit'` to preserve exit codes and real-time streaming output.
 
-2. **`skills/yoakai/SKILL.md`** — LLM-facing instructions, activated when the user wants to run `agy` headlessly with a prompt file or manage model/effort configuration.
+2. **`skills/yoakai/SKILL.md`** — LLM-facing instructions, activated when the user wants to run `agy` headlessly with a prompt file or manage model/effort/harness configuration.
 
 3. **`commands/yoakai.md`** — `/yoakai` slash command.
 
@@ -46,5 +46,5 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
 
 - Zero runtime dependencies in `bin/yoakai.js`. Node.js stdlib only.
 - Auto-approve permissions by default (`--dangerously-skip-permissions`), with `--no-permissions` opt-out.
-- Support persistent config (`config.model`, `config.effort`).
+- Support persistent config (`config.model`, `config.harness`, `config.effort`).
 - Preserve exit status from `agy`.

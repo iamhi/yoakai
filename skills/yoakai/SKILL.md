@@ -34,15 +34,25 @@ Pick the first option that applies:
 Yoakai persists user defaults in `~/.config/yoakai/config.json`:
 
 ```sh
-# Set default model (normalizes underscores to hyphens)
+# Set default model (supports exact names, quotes, hyphens, or underscores)
+yoakai config.model "GPT-6 Luna"
+yoakai config.model gemini-3.8-flash
 yoakai config.model gemini_3.8_flash
-yoakai config.model gemini-3.8-flash-high
+
+# Configure AI harness (agy, copilot, claude)
+yoakai config.harness copilot
+yoakai config.harness claude
+yoakai config.harness agy
 
 # Set default reasoning effort (low, medium, high)
 yoakai config.effort high
 
-# List available agy models
+# List available models (supports --json)
 yoakai models
+yoakai models --json
+
+# List available AI harnesses
+yoakai harnesses
 
 # View current configuration
 yoakai config
@@ -52,7 +62,8 @@ yoakai config
 
 - `<prompt-file-path>`: Relative path to the markdown or text prompt file.
 - `--output-format <text|json|stream-json>`: Output format from `agy` (defaults to `text`).
-- `--model <slug>`: Model slug to use (defaults to `gemini-3.8-flash` or configured default).
+- `--harness <agy|copilot|claude>`: AI harness to use (defaults to `agy` or configured default).
+- `--model <name|slug>`: Model to use (defaults to `gemini-3.8-flash` or configured default).
 - `--effort <low|medium|high>`: Reasoning effort to use (defaults to `high` or configured default).
 - `--no-permissions`, `--no-skip-permissions`: Do not pass `--dangerously-skip-permissions`.
 - Extra flags (e.g. `--continue`, `--conversation <id>`, `--print-timeout <duration>`) are passed through to `agy`.
