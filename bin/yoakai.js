@@ -104,6 +104,68 @@ const normalizeConfigValue = (key, val) => {
   return trimmed
 }
 
+const HARNESS_ADAPTERS = {
+  agy: {
+    command: (win) => (win ? 'agy.cmd' : 'agy'),
+    displayName: 'Google Antigravity CLI',
+    defaultModel: 'gemini-3.8-flash',
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
+      const args = ['-p', promptContent]
+      if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
+        args.push('--dangerously-skip-permissions')
+      }
+      args.push('--model', normalizeModel(activeModel))
+      if (activeEffort) {
+        args.push('--effort', activeEffort)
+      }
+      args.push('--output-format', activeOutputFormat)
+      args.push(...forwardedArgs)
+      return args
+    }
+  },
+  copilot: {
+    command: (win) => (win ? 'copilot.cmd' : 'copilot'),
+    displayName: 'GitHub Copilot CLI',
+    defaultModel: 'gpt-4o',
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeOutputFormat, forwardedArgs }) => {
+      const args = ['-p', promptContent]
+      if (!forwardedArgs.includes('--no-ask-user')) {
+        args.push('--no-ask-user')
+      }
+      if (skipPermissions && !forwardedArgs.includes('--allow-all-tools')) {
+        args.push('--allow-all-tools')
+      }
+      if (activeOutputFormat === 'text' && !forwardedArgs.includes('-s') && !forwardedArgs.includes('--silent')) {
+        args.push('-s')
+      }
+      if (activeModel) {
+        args.push('--model', normalizeModel(activeModel))
+      }
+      args.push(...forwardedArgs)
+      return args
+    }
+  },
+  claude: {
+    command: (win) => (win ? 'claude.cmd' : 'claude'),
+    displayName: 'Claude Code CLI',
+    defaultModel: 'claude-3-7-sonnet',
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeOutputFormat, forwardedArgs }) => {
+      const args = ['-p', promptContent]
+      if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
+        args.push('--dangerously-skip-permissions')
+      }
+      if (activeModel) {
+        args.push('--model', normalizeModel(activeModel))
+      }
+      if (activeOutputFormat) {
+        args.push('--output-format', activeOutputFormat)
+      }
+      args.push(...forwardedArgs)
+      return args
+    }
+  }
+}
+
 const getAvailableModels = (config = {}) => {
   const currentModel = config.model || DEFAULT_MODEL
   const models = BUILTIN_MODELS.map(m => ({
@@ -452,37 +514,34 @@ try {
   process.exit(1)
 }
 
-const activeHarness = (cliHarness || config.harness || DEFAULT_HARNESS).toLowerCase()
-const activeModel = cliModel ? normalizeModel(cliModel) : (config.model || DEFAULT_MODEL)
-const activeEffort = cliEffort || config.effort || DEFAULT_EFFORT
-const activeOutputFormat = cliOutputFormat || config.outputFormat || DEFAULT_OUTPUT_FORMAT
+const globalConfig = readJsonSafe(getGlobalConfigPath())
+const localPath = getLocalConfigPath()
+const localConfig = localPath ? readJsonSafe(localPath) : {}
 
-if (activeHarness !== 'agy') {
-  const harnessCmd = isWindows ? `${activeHarness}.cmd` : activeHarness
-  const probe = spawnSync(harnessCmd, ['--version'], { shell: isWindows })
-  if (probe.error && probe.error.code === 'ENOENT') {
-    console.error(`Error: "${activeHarness}" harness selected, but "${activeHarness}" command not found on PATH.`)
-    process.exit(1)
-  }
+const activeHarness = (cliHarness || localConfig.harness || globalConfig.harness || DEFAULT_HARNESS).toLowerCase()
+const harnessDef = HARNESS_ADAPTERS[activeHarness]
+
+if (!harnessDef) {
+  console.error(`Error: unknown harness "${activeHarness}". Supported harnesses: ${Object.keys(HARNESS_ADAPTERS).join(', ')}`)
+  process.exit(1)
 }
 
-const agyArgs = ['-p', promptContent]
+const explicitModel = cliModel || localConfig.model || globalConfig.model
+const activeModel = explicitModel ? normalizeModel(explicitModel) : harnessDef.defaultModel
+const activeEffort = cliEffort || localConfig.effort || globalConfig.effort || DEFAULT_EFFORT
+const activeOutputFormat = cliOutputFormat || localConfig.outputFormat || globalConfig.outputFormat || DEFAULT_OUTPUT_FORMAT
 
-if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
-  agyArgs.push('--dangerously-skip-permissions')
-}
+const targetCmd = harnessDef.command(isWindows)
+const targetArgs = harnessDef.buildArgs({
+  promptContent,
+  skipPermissions,
+  activeModel,
+  activeEffort,
+  activeOutputFormat,
+  forwardedArgs
+})
 
-agyArgs.push('--model', normalizeModel(activeModel))
-
-if (activeEffort) {
-  agyArgs.push('--effort', activeEffort)
-}
-
-agyArgs.push('--output-format', activeOutputFormat)
-
-agyArgs.push(...forwardedArgs)
-
-const result = spawnSync(agyCmd, agyArgs, {
+const result = spawnSync(targetCmd, targetArgs, {
   stdio: 'inherit',
   cwd: process.cwd(),
   shell: isWindows
@@ -490,11 +549,12 @@ const result = spawnSync(agyCmd, agyArgs, {
 
 if (result.error) {
   if (result.error.code === 'ENOENT') {
-    console.error('Error: "agy" command not found on PATH. Make sure Google Antigravity CLI is installed and available.')
+    console.error(`Error: "${targetCmd}" command not found on PATH. Make sure ${harnessDef.displayName} is installed and available.`)
   } else {
-    console.error(`Error executing agy: ${result.error.message}`)
+    console.error(`Error executing ${activeHarness}: ${result.error.message}`)
   }
   process.exit(1)
 }
 
 process.exit(result.status ?? 0)
+

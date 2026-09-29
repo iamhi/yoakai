@@ -1,7 +1,7 @@
 {
   "name": "yoakai",
   "version": "1.0.0",
-  "description": "Zero-dependency CLI + plugin to run Google Antigravity (agy) headlessly with relative prompt files, persistent model/effort configurations, and auto-approved permissions.",
+  "description": "Zero-dependency CLI + plugin to run AI agents (Google Antigravity, GitHub Copilot CLI, Claude Code) headlessly with relative prompt files, persistent model/effort configurations, and auto-approved permissions.",
   "bin": {
     "yoakai": "./bin/yoakai.js"
   },
@@ -9,8 +9,11 @@
   "files": [
     "bin",
     "skills",
+    "agents",
     "commands",
+    "plugin.json",
     ".claude-plugin",
+    ".agents",
     "readme.md"
   ],
   "scripts": {
@@ -19,10 +22,13 @@
   "keywords": [
     "antigravity",
     "agy",
+    "copilot",
+    "copilot-cli",
+    "copilot-plugin",
+    "claude-plugin",
     "headless",
     "ai",
-    "cli",
-    "claude-plugin"
+    "cli"
   ],
   "license": "MIT",
   "engines": {

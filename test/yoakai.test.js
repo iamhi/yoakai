@@ -26,6 +26,24 @@ fi
 echo "mock agy execution successful"
 `
 
+const mockCopilotScript = `#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  echo "copilot version 1.0.0"
+  exit 0
+fi
+
+if [[ -n "$MOCK_COPILOT_EXIT_CODE" ]]; then
+  echo "simulated copilot error" >&2
+  exit "$MOCK_COPILOT_EXIT_CODE"
+fi
+
+if [[ -n "$MOCK_COPILOT_LOG_FILE" ]]; then
+  printf '%s\\n' "$@" > "$MOCK_COPILOT_LOG_FILE"
+fi
+
+echo "mock copilot execution successful"
+`
+
 function setupTestEnv() {
   const baseDir = mkdtempSync(join(tmpdir(), 'yoakai-test-'))
   const binDir = join(baseDir, 'bin')
@@ -34,17 +52,20 @@ function setupTestEnv() {
   mkdirSync(configHome)
 
   writeFileSync(join(binDir, 'agy'), mockAgyScript, { mode: 0o755 })
+  writeFileSync(join(binDir, 'copilot'), mockCopilotScript, { mode: 0o755 })
 
   const logFile = join(baseDir, 'agy_args.log')
+  const copilotLogFile = join(baseDir, 'copilot_args.log')
 
   const env = {
     ...process.env,
     PATH: `${binDir}:${process.env.PATH}`,
     XDG_CONFIG_HOME: configHome,
-    MOCK_LOG_FILE: logFile
+    MOCK_LOG_FILE: logFile,
+    MOCK_COPILOT_LOG_FILE: copilotLogFile
   }
 
-  return { baseDir, binDir, configHome, logFile, env }
+  return { baseDir, binDir, configHome, logFile, copilotLogFile, env }
 }
 
 function runYoakai(args, cwd, env) {
@@ -268,4 +289,109 @@ test('lists available harnesses', () => {
   assert.match(output, /copilot/)
   assert.match(output, /claude/)
 })
+
+test('runs copilot harness with -p, --no-ask-user, --allow-all-tools, -s, and default model', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'copilot-prompt.md')
+  writeFileSync(promptFile, 'Explain event loops', 'utf8')
+
+  const output = runYoakai(['copilot-prompt.md', '--harness', 'copilot'], baseDir, env)
+  assert.match(output, /mock copilot execution successful/)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs[1], 'Explain event loops')
+  assert.ok(loggedArgs.includes('--no-ask-user'))
+  assert.ok(loggedArgs.includes('--allow-all-tools'))
+  assert.ok(loggedArgs.includes('-s'))
+  assert.ok(loggedArgs.includes('--model'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'gpt-4o')
+})
+
+test('respects --no-permissions in copilot harness and omits --allow-all-tools', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'copilot-prompt.md')
+  writeFileSync(promptFile, 'Analyze repository', 'utf8')
+
+  runYoakai(['copilot-prompt.md', '--harness', 'copilot', '--no-permissions'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs.includes('--allow-all-tools'), false)
+  assert.ok(loggedArgs.includes('--no-ask-user'))
+})
+
+test('supports config.harness copilot persisted across runs', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'task.md')
+  writeFileSync(promptFile, 'Persistent task', 'utf8')
+
+  runYoakai(['config.harness', 'copilot'], baseDir, env)
+  runYoakai(['task.md'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs[1], 'Persistent task')
+  assert.ok(loggedArgs.includes('--allow-all-tools'))
+})
+
+test('passes custom model to copilot harness', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'task.md')
+  writeFileSync(promptFile, 'Deep reasoning', 'utf8')
+
+  runYoakai(['task.md', '--harness', 'copilot', '--model', 'o3-mini'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--model'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'o3-mini')
+})
+
+test('forwards arbitrary flags to copilot', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'task.md')
+  writeFileSync(promptFile, 'Cloud sandbox task', 'utf8')
+
+  runYoakai(['task.md', '--harness', 'copilot', '--cloud', '--allow-tool=write'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--cloud'))
+  assert.ok(loggedArgs.includes('--allow-tool=write'))
+})
+
+test('propagates non-zero exit code from copilot', () => {
+  const { baseDir, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Failing copilot task', 'utf8')
+
+  assert.throws(
+    () => runYoakai(['prompt.md', '--harness', 'copilot'], baseDir, { ...env, MOCK_COPILOT_EXIT_CODE: '5' }),
+    (err) => {
+      assert.equal(err.status, 5)
+      return true
+    }
+  )
+})
+
+test('reports descriptive error when copilot is missing on PATH', () => {
+  const { baseDir, configHome } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Missing binary task', 'utf8')
+
+  const cleanEnv = {
+    PATH: '/usr/bin:/bin',
+    XDG_CONFIG_HOME: configHome
+  }
+
+  assert.throws(
+    () => runYoakai(['prompt.md', '--harness', 'copilot'], baseDir, cleanEnv),
+    (err) => {
+      assert.match(err.stderr, /"copilot" command not found on PATH/)
+      assert.match(err.stderr, /GitHub Copilot CLI/)
+      assert.equal(err.status, 1)
+      return true
+    }
+  )
+})
+
 

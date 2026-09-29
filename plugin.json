@@ -1,0 +1,27 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "yoakai",
+  "version": "1.0.0",
+  "description": "Execute headless AI agents (Google Antigravity, GitHub Copilot CLI, or Claude Code) using prompt files with auto-approved permissions and persistent configurations.",
+  "author": {
+    "name": "iamhi"
+  },
+  "homepage": "https://github.com/iamhi/yoakai",
+  "repository": "https://github.com/iamhi/yoakai",
+  "license": "MIT",
+  "keywords": [
+    "copilot",
+    "copilot-cli",
+    "antigravity",
+    "agy",
+    "claude",
+    "headless",
+    "agent"
+  ],
+  "skills": [
+    "skills/yoakai"
+  ],
+  "agents": [
+    "agents/yoakai.agent.md"
+  ]
+}

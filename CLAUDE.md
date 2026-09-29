@@ -4,14 +4,15 @@ This file provides guidance when working with code in this repository.
 
 ## What this repo is
 
-Yoakai is a single-purpose tool: execute Google Antigravity (`agy`) in headless mode using a relative prompt file, with auto-approved permissions by default, configurable model and effort defaults, and zero runtime dependencies.
+Yoakai is a single-purpose tool: execute AI agent CLIs (Google Antigravity `agy`, GitHub Copilot CLI `copilot`, Claude Code `claude`) in headless mode using a relative prompt file, with auto-approved permissions by default, configurable harness/model/effort defaults, and zero runtime dependencies.
 
-It is shipped through **two surfaces at once from the same repo**:
+It is shipped through multiple surfaces from the same repo:
 
 - npm CLI (`yoakai` binary on `PATH`, via `package.json` `bin`)
-- Plugin (skill + `/yoakai` slash command, via `.claude-plugin/`)
+- GitHub Copilot Plugin & Skill (`plugin.json`, `agents/yoakai.agent.md`, `.agents/skills/yoakai/SKILL.md`)
+- Claude Plugin (skill + `/yoakai` slash command, via `.claude-plugin/`)
 
-Both surfaces ultimately execute `bin/yoakai.js`. Keep the behavior identical across them.
+All surfaces ultimately execute `bin/yoakai.js`. Keep the behavior identical across them.
 
 ## Commands
 
@@ -28,23 +29,30 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
 
 1. **`bin/yoakai.js`** — the entire CLI implementation with zero runtime dependencies. Uses only Node.js standard libraries (`node:fs`, `node:path`, `node:child_process`, `node:os`, `node:process`).
    - Manages configuration (`~/.config/yoakai/config.json` and local `.yoakairc` / `.yoakai.json`).
-   - Handles `yoakai config.model <value>` (e.g. `"GPT-6 Luna"`, `"gemini-3.8-flash"`), `yoakai config.harness <value>` (`agy`, `copilot`, `claude`), `yoakai config.effort <value>`, `yoakai models [--json]`, `yoakai harnesses`.
-   - Reads relative prompt file, forwards prompt content via `-p "<content>"`, appends `--dangerously-skip-permissions` (unless disabled with `--no-permissions`), and passes through extra flags to `agy`.
-   - Spawns `agy` with `stdio: 'inherit'` to preserve exit codes and real-time streaming output.
+   - Handles `yoakai config.model <value>`, `yoakai config.harness <value>` (`agy`, `copilot`, `claude`), `yoakai config.effort <value>`, `yoakai models [--json]`, `yoakai harnesses`.
+   - Uses `HARNESS_ADAPTERS` to translate arguments:
+     - `agy`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`
+     - `copilot`: `-p "<content>"`, `--no-ask-user`, `--allow-all-tools`, `-s`, `--model`
+     - `claude`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--output-format`
+   - Spawns the harness with `stdio: 'inherit'` to preserve exit codes and real-time streaming output.
 
-2. **`skills/yoakai/SKILL.md`** — LLM-facing instructions, activated when the user wants to run `agy` headlessly with a prompt file or manage model/effort/harness configuration.
+2. **Copilot Plugin & Skills**:
+   - `plugin.json` — Agent Plugins 1.0 manifest for GitHub Copilot.
+   - `agents/yoakai.agent.md` — Copilot custom agent definition.
+   - `.agents/skills/yoakai/SKILL.md` & `skills/yoakai/SKILL.md` — Agent skills for Copilot and Claude.
 
-3. **`commands/yoakai.md`** — `/yoakai` slash command.
-
-4. **Plugin packaging**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`.
+3. **Claude Plugin**:
+   - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`.
+   - `commands/yoakai.md` — `/yoakai` slash command.
 
 ## Testing model
 
-`test/yoakai.test.js` uses `node:test`. Each test runs in an isolated temporary directory with a mock `agy` binary prefixed on `PATH`. The real `agy` daemon/API is never called during tests.
+`test/yoakai.test.js` uses `node:test`. Each test runs in an isolated temporary directory with mock `agy` and `copilot` binaries prefixed on `PATH`. The real daemons/APIs are never called during tests.
 
 ## Constraints to preserve
 
 - Zero runtime dependencies in `bin/yoakai.js`. Node.js stdlib only.
-- Auto-approve permissions by default (`--dangerously-skip-permissions`), with `--no-permissions` opt-out.
+- Auto-approve permissions by default (`--dangerously-skip-permissions` for `agy`/`claude`, `--allow-all-tools` for `copilot`), with `--no-permissions` opt-out.
 - Support persistent config (`config.model`, `config.harness`, `config.effort`).
-- Preserve exit status from `agy`.
+- Preserve exit status from underlying agent CLIs.
+

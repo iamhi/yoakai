@@ -1,22 +1,25 @@
 # Yoakai
 
-Execute Google Antigravity (`agy`) in headless mode using a relative prompt file, with auto-approved permissions, persistent model/effort configuration, and 0 runtime dependencies.
+Execute AI agents (Google Antigravity `agy`, GitHub Copilot CLI `copilot`, or Claude Code `claude`) in headless mode using a relative prompt file, with auto-approved permissions, persistent model/effort configuration, and 0 runtime dependencies.
 
-Based on the [Google Antigravity Headless Mode documentation](https://antigravity.google/docs/cli/headless/).
+Based on the [Google Antigravity Headless Mode](https://antigravity.google/docs/cli/headless/) and [GitHub Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/about-copilot-cli) specifications.
 
-Ships as both:
+Ships across multiple surfaces from the same repo:
 
 - a **CLI** (`yoakai` on your `PATH`)
-- a **plugin** (skill + `/yoakai` slash command)
+- a **GitHub Copilot Plugin & Skill** (Agent Plugins 1.0 `plugin.json`, custom agent, `.agents/skills/yoakai/SKILL.md`)
+- a **Claude Code Plugin** (skill + `/yoakai` slash command)
 
 ## What it does
 
 1. Reads a prompt file from a relative path (e.g. `yoakai ./prompts/task.md`)
-2. Injects the prompt content into `agy -p "<content>"`
-3. Auto-approves tool permissions by default via `--dangerously-skip-permissions`
-4. Uses **Gemini 3.8 Flash (`gemini-3.8-flash`)** and **`high` reasoning effort** by default (customizable via config or flags)
-5. Streams clean response text without tool call noise (or JSON when requested)
-6. Forwards any additional CLI flags directly to `agy`
+2. Injects the prompt content into the target harness via `-p "<content>"`
+3. Auto-approves permissions cleanly according to the selected harness:
+   - For `copilot`: `--allow-all-tools --no-ask-user -s`
+   - For `agy` and `claude`: `--dangerously-skip-permissions`
+4. Uses default models per harness (`gemini-3.8-flash` for `agy`, `gpt-4o` for `copilot`, `claude-3-7-sonnet` for `claude`), customizable via config or flags
+5. Streams clean response text without interactive prompt noise
+6. Forwards any additional CLI flags directly to the underlying CLI
 
 ## Install
 
@@ -37,6 +40,12 @@ The `yoakai` binary is now available on your `PATH`.
 
 ### As a Plugin
 
+#### In GitHub Copilot CLI:
+```sh
+copilot plugin install iamhi/yoakai
+```
+
+#### In Claude Code:
 ```
 /plugin marketplace add iamhi/yoakai
 /plugin install yoakai@yoakai
@@ -44,16 +53,23 @@ The `yoakai` binary is now available on your `PATH`.
 
 ## Usage
 
-### Run with a prompt file
+### Run with a prompt file (default harness: agy)
 
 ```sh
 yoakai ./prompt.md
 ```
 
+### Run using GitHub Copilot CLI
+
+```sh
+yoakai ./prompt.md --harness copilot
+```
+
 ### Override model or effort on the fly
 
 ```sh
-yoakai ./prompt.md --model gemini-3.8-flash-high --effort high
+yoakai ./prompt.md --harness copilot --model o3-mini
+yoakai ./prompt.md --harness agy --model gemini-3.8-flash-high --effort high
 ```
 
 ### JSON output format
@@ -70,25 +86,27 @@ yoakai ./prompt.md --no-permissions
 
 ## Configuration
 
-Persist your preferred default model, harness, and reasoning effort across sessions:
+Persist your preferred default harness, model, and reasoning effort across sessions:
 
 ```sh
+# Configure AI harness (copilot, agy, claude)
+yoakai config.harness copilot
+yoakai config.harness agy
+yoakai config.harness claude
+
 # Set default model (supports exact names, quotes, hyphens, or underscores)
 yoakai config.model "GPT-6 Luna"
+yoakai config.model gpt-4o
 yoakai config.model gemini-3.8-flash
-yoakai config.model gemini_3.8_flash
 
 # Or via `config set`
-yoakai config set model "GPT-6 Luna"
+yoakai config set harness copilot
+yoakai config set model gpt-4o
 
-# Get active model
+# Get active configuration
+yoakai config.harness
 yoakai config.model
 yoakai config get model
-
-# Configure AI harness (agy, copilot, claude)
-yoakai config.harness copilot
-yoakai config.harness claude
-yoakai config.harness agy
 
 # Set default reasoning effort
 yoakai config.effort high
@@ -115,8 +133,13 @@ npm test
 ## Repo layout
 
 ```
+plugin.json           Agent Plugins 1.0 manifest (GitHub Copilot)
+agents/
+  yoakai.agent.md     Copilot custom agent definition
+.agents/skills/
+  yoakai/SKILL.md     Copilot agent skill definition
 .claude-plugin/
-  plugin.json         plugin manifest
+  plugin.json         Claude plugin manifest
   marketplace.json    marketplace catalog
 skills/yoakai/
   SKILL.md            LLM-facing skill instructions

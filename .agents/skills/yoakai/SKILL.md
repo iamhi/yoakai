@@ -67,4 +67,3 @@ yoakai config
 - `--effort <low|medium|high>`: Reasoning effort to use (defaults to `high` or configured default).
 - `--no-permissions`, `--no-skip-permissions`: Do not auto-approve permissions (`--dangerously-skip-permissions` for `agy`/`claude`, `--allow-all-tools` for `copilot`).
 - Extra flags (e.g. `--cloud`, `--allow-tool <tool>`, `--continue`) are forwarded directly to the selected harness CLI.
-
