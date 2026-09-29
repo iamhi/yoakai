@@ -17,11 +17,5 @@
     "claude",
     "headless",
     "agent"
-  ],
-  "skills": [
-    "skills/yoakai"
-  ],
-  "agents": [
-    "agents/yoakai.agent.md"
   ]
 }

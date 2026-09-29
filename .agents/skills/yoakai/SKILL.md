@@ -20,7 +20,7 @@ Pick the first option that applies:
 2. **Copilot / Claude Plugin:** if running as a plugin, run via the bundled script:
 
    ```sh
-   node "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-. }}/bin/yoakai.js" <path-to-prompt-file>
+   node "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/bin/yoakai.js" <path-to-prompt-file>
    ```
 
 3. **Fallback:** run via Node directly:
@@ -67,3 +67,4 @@ yoakai config
 - `--effort <low|medium|high>`: Reasoning effort to use (defaults to `high` or configured default).
 - `--no-permissions`, `--no-skip-permissions`: Do not auto-approve permissions (`--dangerously-skip-permissions` for `agy`/`claude`, `--allow-all-tools` for `copilot`).
 - Extra flags (e.g. `--cloud`, `--allow-tool <tool>`, `--continue`) are forwarded directly to the selected harness CLI.
+

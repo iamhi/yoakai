@@ -44,6 +44,24 @@ fi
 echo "mock copilot execution successful"
 `
 
+const mockClaudeScript = `#!/usr/bin/env bash
+if [[ "$1" == "--version" ]]; then
+  echo "claude version 1.0.0"
+  exit 0
+fi
+
+if [[ -n "$MOCK_CLAUDE_EXIT_CODE" ]]; then
+  echo "simulated claude error" >&2
+  exit "$MOCK_CLAUDE_EXIT_CODE"
+fi
+
+if [[ -n "$MOCK_CLAUDE_LOG_FILE" ]]; then
+  printf '%s\\n' "$@" > "$MOCK_CLAUDE_LOG_FILE"
+fi
+
+echo "mock claude execution successful"
+`
+
 function setupTestEnv() {
   const baseDir = mkdtempSync(join(tmpdir(), 'yoakai-test-'))
   const binDir = join(baseDir, 'bin')
@@ -53,19 +71,22 @@ function setupTestEnv() {
 
   writeFileSync(join(binDir, 'agy'), mockAgyScript, { mode: 0o755 })
   writeFileSync(join(binDir, 'copilot'), mockCopilotScript, { mode: 0o755 })
+  writeFileSync(join(binDir, 'claude'), mockClaudeScript, { mode: 0o755 })
 
   const logFile = join(baseDir, 'agy_args.log')
   const copilotLogFile = join(baseDir, 'copilot_args.log')
+  const claudeLogFile = join(baseDir, 'claude_args.log')
 
   const env = {
     ...process.env,
     PATH: `${binDir}:${process.env.PATH}`,
     XDG_CONFIG_HOME: configHome,
     MOCK_LOG_FILE: logFile,
-    MOCK_COPILOT_LOG_FILE: copilotLogFile
+    MOCK_COPILOT_LOG_FILE: copilotLogFile,
+    MOCK_CLAUDE_LOG_FILE: claudeLogFile
   }
 
-  return { baseDir, binDir, configHome, logFile, copilotLogFile, env }
+  return { baseDir, binDir, configHome, logFile, copilotLogFile, claudeLogFile, env }
 }
 
 function runYoakai(args, cwd, env) {
@@ -393,5 +414,139 @@ test('reports descriptive error when copilot is missing on PATH', () => {
     }
   )
 })
+
+test('runs claude harness with -p, --dangerously-skip-permissions, default model, and effort', () => {
+  const { baseDir, claudeLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'claude-prompt.md')
+  writeFileSync(promptFile, 'Explain async generators', 'utf8')
+
+  const output = runYoakai(['claude-prompt.md', '--harness', 'claude'], baseDir, env)
+  assert.match(output, /mock claude execution successful/)
+
+  const loggedArgs = readFileSync(claudeLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs[1], 'Explain async generators')
+  assert.ok(loggedArgs.includes('--dangerously-skip-permissions'))
+  assert.ok(loggedArgs.includes('--model'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'claude-3-7-sonnet')
+  assert.ok(loggedArgs.includes('--effort'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--effort') + 1], 'high')
+  assert.ok(loggedArgs.includes('--output-format'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--output-format') + 1], 'text')
+})
+
+test('respects --no-permissions in claude harness and omits --dangerously-skip-permissions', () => {
+  const { baseDir, claudeLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'claude-prompt.md')
+  writeFileSync(promptFile, 'Audit dependencies', 'utf8')
+
+  runYoakai(['claude-prompt.md', '--harness', 'claude', '--no-permissions'], baseDir, env)
+
+  const loggedArgs = readFileSync(claudeLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs.includes('--dangerously-skip-permissions'), false)
+})
+
+test('passes custom model and effort to claude harness', () => {
+  const { baseDir, claudeLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'task.md')
+  writeFileSync(promptFile, 'Complex architecture prompt', 'utf8')
+
+  runYoakai(['task.md', '--harness', 'claude', '--model', 'claude-opus-4', '--effort', 'max'], baseDir, env)
+
+  const loggedArgs = readFileSync(claudeLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--model'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'claude-opus-4')
+  assert.ok(loggedArgs.includes('--effort'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--effort') + 1], 'max')
+})
+
+test('forwards arbitrary flags to claude', () => {
+  const { baseDir, claudeLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'task.md')
+  writeFileSync(promptFile, 'Verbose task', 'utf8')
+
+  runYoakai(['task.md', '--harness', 'claude', '--verbose', '--max-thinking-tokens', '4000'], baseDir, env)
+
+  const loggedArgs = readFileSync(claudeLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--verbose'))
+  assert.ok(loggedArgs.includes('--max-thinking-tokens'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--max-thinking-tokens') + 1], '4000')
+})
+
+test('propagates non-zero exit code from claude', () => {
+  const { baseDir, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Failing claude task', 'utf8')
+
+  assert.throws(
+    () => runYoakai(['prompt.md', '--harness', 'claude'], baseDir, { ...env, MOCK_CLAUDE_EXIT_CODE: '3' }),
+    (err) => {
+      assert.equal(err.status, 3)
+      return true
+    }
+  )
+})
+
+test('reports descriptive error when claude is missing on PATH', () => {
+  const { baseDir, configHome } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Missing claude binary task', 'utf8')
+
+  const cleanEnv = {
+    PATH: '/usr/bin:/bin',
+    XDG_CONFIG_HOME: configHome
+  }
+
+  assert.throws(
+    () => runYoakai(['prompt.md', '--harness', 'claude'], baseDir, cleanEnv),
+    (err) => {
+      assert.match(err.stderr, /"claude" command not found on PATH/)
+      assert.match(err.stderr, /Claude Code CLI/)
+      assert.equal(err.status, 1)
+      return true
+    }
+  )
+})
+
+test('runs copilot harness with custom output-format', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'copilot-prompt.md')
+  writeFileSync(promptFile, 'Output JSON task', 'utf8')
+
+  runYoakai(['copilot-prompt.md', '--harness', 'copilot', '--output-format', 'json'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--output-format'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--output-format') + 1], 'json')
+  assert.equal(loggedArgs.includes('-s'), false)
+})
+
+test('dynamically resolves default model in config based on active harness', () => {
+  const { baseDir, env } = setupTestEnv()
+
+  // Default is agy -> gemini-3.8-flash
+  const agyConfig = JSON.parse(runYoakai(['config'], baseDir, env))
+  assert.equal(agyConfig.harness, 'agy')
+  assert.equal(agyConfig.model, 'gemini-3.8-flash')
+
+  // Switch harness to copilot -> default model is gpt-4o
+  runYoakai(['config.harness', 'copilot'], baseDir, env)
+  const copilotConfig = JSON.parse(runYoakai(['config'], baseDir, env))
+  assert.equal(copilotConfig.harness, 'copilot')
+  assert.equal(copilotConfig.model, 'gpt-4o')
+
+  // Switch harness to claude -> default model is claude-3-7-sonnet
+  runYoakai(['config.harness', 'claude'], baseDir, env)
+  const claudeConfig = JSON.parse(runYoakai(['config'], baseDir, env))
+  assert.equal(claudeConfig.harness, 'claude')
+  assert.equal(claudeConfig.model, 'claude-3-7-sonnet')
+
+  // Explicit model configuration overrides harness default
+  runYoakai(['config.model', 'o3-mini'], baseDir, env)
+  const overrideConfig = JSON.parse(runYoakai(['config'], baseDir, env))
+  assert.equal(overrideConfig.model, 'o3-mini')
+})
+
 
 

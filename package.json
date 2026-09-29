@@ -12,6 +12,7 @@
     "agents",
     "commands",
     "plugin.json",
+    "com.github.copilot",
     ".claude-plugin",
     ".agents",
     "readme.md"

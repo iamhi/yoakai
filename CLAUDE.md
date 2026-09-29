@@ -32,14 +32,14 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
    - Handles `yoakai config.model <value>`, `yoakai config.harness <value>` (`agy`, `copilot`, `claude`), `yoakai config.effort <value>`, `yoakai models [--json]`, `yoakai harnesses`.
    - Uses `HARNESS_ADAPTERS` to translate arguments:
      - `agy`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`
-     - `copilot`: `-p "<content>"`, `--no-ask-user`, `--allow-all-tools`, `-s`, `--model`
-     - `claude`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--output-format`
+     - `copilot`: `-p "<content>"`, `--no-ask-user`, `--allow-all-tools`, `-s`, `--model`, `--output-format`
+     - `claude`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`
    - Spawns the harness with `stdio: 'inherit'` to preserve exit codes and real-time streaming output.
 
 2. **Copilot Plugin & Skills**:
    - `plugin.json` — Agent Plugins 1.0 manifest for GitHub Copilot.
-   - `agents/yoakai.agent.md` — Copilot custom agent definition.
-   - `.agents/skills/yoakai/SKILL.md` & `skills/yoakai/SKILL.md` — Agent skills for Copilot and Claude.
+   - `com.github.copilot/agents/yoakai.agent.md` & `agents/yoakai.agent.md` — Copilot custom agent definitions.
+   - `.agents/skills/yoakai/SKILL.md` (Google Antigravity) & `skills/yoakai/SKILL.md` (Agent Plugins / Claude) — Agent skills.
 
 3. **Claude Plugin**:
    - `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`.
@@ -47,7 +47,7 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
 
 ## Testing model
 
-`test/yoakai.test.js` uses `node:test`. Each test runs in an isolated temporary directory with mock `agy` and `copilot` binaries prefixed on `PATH`. The real daemons/APIs are never called during tests.
+`test/yoakai.test.js` uses `node:test`. Each test runs in an isolated temporary directory with mock `agy`, `copilot`, and `claude` binaries prefixed on `PATH`. The real daemons/APIs are never called during tests.
 
 ## Constraints to preserve
 

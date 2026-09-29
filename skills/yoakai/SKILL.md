@@ -20,7 +20,7 @@ Pick the first option that applies:
 2. **Copilot / Claude Plugin:** if running as a plugin, run via the bundled script:
 
    ```sh
-   node "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-. }}/bin/yoakai.js" <path-to-prompt-file>
+   node "${PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.}}/bin/yoakai.js" <path-to-prompt-file>
    ```
 
 3. **Fallback:** run via Node directly:

@@ -7,7 +7,8 @@ Based on the [Google Antigravity Headless Mode](https://antigravity.google/docs/
 Ships across multiple surfaces from the same repo:
 
 - a **CLI** (`yoakai` on your `PATH`)
-- a **GitHub Copilot Plugin & Skill** (Agent Plugins 1.0 `plugin.json`, custom agent, `.agents/skills/yoakai/SKILL.md`)
+- a **GitHub Copilot Plugin & Skill** (Agent Plugins 1.0 `plugin.json`, custom agent, `skills/yoakai/SKILL.md`)
+- a **Google Antigravity Skill** (`.agents/skills/yoakai/SKILL.md`)
 - a **Claude Code Plugin** (skill + `/yoakai` slash command)
 
 ## What it does
@@ -134,15 +135,18 @@ npm test
 
 ```
 plugin.json           Agent Plugins 1.0 manifest (GitHub Copilot)
+com.github.copilot/
+  agents/
+    yoakai.agent.md   Copilot Agent Plugins 1.0 custom agent
 agents/
-  yoakai.agent.md     Copilot custom agent definition
+  yoakai.agent.md     Copilot custom agent definition (legacy discovery)
 .agents/skills/
-  yoakai/SKILL.md     Copilot agent skill definition
+  yoakai/SKILL.md     Google Antigravity agent skill definition
 .claude-plugin/
   plugin.json         Claude plugin manifest
   marketplace.json    marketplace catalog
 skills/yoakai/
-  SKILL.md            LLM-facing skill instructions
+  SKILL.md            Agent Plugins 1.0 / Claude portable skill
 commands/
   yoakai.md           /yoakai slash command
 bin/

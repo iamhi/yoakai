@@ -66,26 +66,6 @@ const BUILTIN_MODELS = [
   { id: 'o1', name: 'o1', provider: 'OpenAI', harness: 'copilot' }
 ]
 
-const loadConfig = () => {
-  const globalConfig = readJsonSafe(getGlobalConfigPath())
-  const localPath = getLocalConfigPath()
-  const localConfig = localPath ? readJsonSafe(localPath) : {}
-  return {
-    harness: DEFAULT_HARNESS,
-    model: DEFAULT_MODEL,
-    effort: DEFAULT_EFFORT,
-    outputFormat: DEFAULT_OUTPUT_FORMAT,
-    ...globalConfig,
-    ...localConfig
-  }
-}
-
-const saveGlobalConfig = (config) => {
-  const targetPath = getGlobalConfigPath()
-  mkdirSync(dirname(targetPath), { recursive: true })
-  writeFileSync(targetPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
-}
-
 const normalizeModel = (val) => {
   if (typeof val !== 'string') return val
   const trimmed = val.trim().replace(/^["'](.*)["']$/, '$1')
@@ -127,7 +107,7 @@ const HARNESS_ADAPTERS = {
     command: (win) => (win ? 'copilot.cmd' : 'copilot'),
     displayName: 'GitHub Copilot CLI',
     defaultModel: 'gpt-4o',
-    buildArgs: ({ promptContent, skipPermissions, activeModel, activeOutputFormat, forwardedArgs }) => {
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
       const args = ['-p', promptContent]
       if (!forwardedArgs.includes('--no-ask-user')) {
         args.push('--no-ask-user')
@@ -137,6 +117,8 @@ const HARNESS_ADAPTERS = {
       }
       if (activeOutputFormat === 'text' && !forwardedArgs.includes('-s') && !forwardedArgs.includes('--silent')) {
         args.push('-s')
+      } else if (activeOutputFormat && activeOutputFormat !== 'text' && !forwardedArgs.includes('--output-format')) {
+        args.push('--output-format', activeOutputFormat)
       }
       if (activeModel) {
         args.push('--model', normalizeModel(activeModel))
@@ -149,7 +131,7 @@ const HARNESS_ADAPTERS = {
     command: (win) => (win ? 'claude.cmd' : 'claude'),
     displayName: 'Claude Code CLI',
     defaultModel: 'claude-3-7-sonnet',
-    buildArgs: ({ promptContent, skipPermissions, activeModel, activeOutputFormat, forwardedArgs }) => {
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
       const args = ['-p', promptContent]
       if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
         args.push('--dangerously-skip-permissions')
@@ -157,13 +139,38 @@ const HARNESS_ADAPTERS = {
       if (activeModel) {
         args.push('--model', normalizeModel(activeModel))
       }
-      if (activeOutputFormat) {
+      if (activeEffort && !forwardedArgs.includes('--effort')) {
+        args.push('--effort', activeEffort)
+      }
+      if (activeOutputFormat && !forwardedArgs.includes('--output-format')) {
         args.push('--output-format', activeOutputFormat)
       }
       args.push(...forwardedArgs)
       return args
     }
   }
+}
+
+const loadConfig = () => {
+  const globalConfig = readJsonSafe(getGlobalConfigPath())
+  const localPath = getLocalConfigPath()
+  const localConfig = localPath ? readJsonSafe(localPath) : {}
+  const harness = (localConfig.harness || globalConfig.harness || DEFAULT_HARNESS).toLowerCase()
+  const defaultModel = HARNESS_ADAPTERS[harness]?.defaultModel || DEFAULT_MODEL
+  return {
+    harness,
+    model: defaultModel,
+    effort: DEFAULT_EFFORT,
+    outputFormat: DEFAULT_OUTPUT_FORMAT,
+    ...globalConfig,
+    ...localConfig
+  }
+}
+
+const saveGlobalConfig = (config) => {
+  const targetPath = getGlobalConfigPath()
+  mkdirSync(dirname(targetPath), { recursive: true })
+  writeFileSync(targetPath, JSON.stringify(config, null, 2) + '\n', 'utf8')
 }
 
 const getAvailableModels = (config = {}) => {
