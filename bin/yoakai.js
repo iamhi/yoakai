@@ -235,6 +235,8 @@ const printAvailableHarnesses = (config = {}) => {
 const printUsage = () => {
   console.log(`Usage:
   yoakai <prompt-file-path> [options...]
+  yoakai -p "<prompt-text>" [options...]
+  yoakai --prompt "<prompt-text>" [options...]
   yoakai config.<key> [value]
   yoakai config set <key> <value>
   yoakai config get <key>
@@ -243,6 +245,7 @@ const printUsage = () => {
   yoakai harnesses [--json]
 
 Options:
+  -p, --prompt <text>                      Direct prompt string (alternative to prompt file)
   --output-format <text|json|stream-json>  Output format (default: text)
   --harness <agy|copilot|claude>           AI harness (default: agy)
   --model <name|slug>                      Model name/slug (default: gemini-3.8-flash)
@@ -253,6 +256,7 @@ Options:
 
 Examples:
   yoakai ./prompt.md
+  yoakai -p "Summarize git diff"
   yoakai ./prompt.md --model "GPT-6 Luna"
   yoakai ./prompt.md --model claude-3-7-sonnet
   yoakai config.model "GPT-6 Luna"
@@ -428,8 +432,9 @@ if (rawArgs[0].startsWith('config.') || rawArgs[0] === 'config') {
   process.exit(0)
 }
 
-// Find prompt file path (first positional argument not starting with -)
+// Find prompt file path (first positional argument not starting with -) or inline prompt (-p / --prompt)
 let promptFilePath = null
+let inlinePrompt = null
 const forwardedArgs = []
 let skipNext = false
 let skipPermissions = true
@@ -446,6 +451,12 @@ for (let i = 0; i < rawArgs.length; i++) {
     continue
   }
   const arg = rawArgs[i]
+
+  if (arg === '-p' || arg === '--prompt') {
+    inlinePrompt = rawArgs[i + 1]
+    skipNext = true
+    continue
+  }
 
   if (arg === '--no-permissions' || arg === '--no-skip-permissions') {
     skipPermissions = false
@@ -481,7 +492,7 @@ for (let i = 0; i < rawArgs.length; i++) {
     continue
   }
 
-  if (!promptFilePath && !arg.startsWith('-')) {
+  if (!promptFilePath && !inlinePrompt && !arg.startsWith('-')) {
     promptFilePath = arg
     continue
   }
@@ -489,35 +500,38 @@ for (let i = 0; i < rawArgs.length; i++) {
   forwardedArgs.push(arg)
 }
 
-if (!promptFilePath) {
-  console.error('Error: no prompt file specified.')
-  printUsage()
-  process.exit(1)
-}
+let promptContent = null
 
-const resolvedPath = resolve(process.cwd(), promptFilePath)
+if (inlinePrompt !== null && inlinePrompt !== undefined) {
+  promptContent = inlinePrompt
+} else if (promptFilePath) {
+  const resolvedPath = resolve(process.cwd(), promptFilePath)
 
-if (!existsSync(resolvedPath)) {
-  console.error(`Error: prompt file not found: ${promptFilePath}`)
-  process.exit(1)
-}
-
-try {
-  const stat = statSync(resolvedPath)
-  if (!stat.isFile()) {
-    console.error(`Error: specified path is not a file: ${promptFilePath}`)
+  if (!existsSync(resolvedPath)) {
+    console.error(`Error: prompt file not found: ${promptFilePath}`)
     process.exit(1)
   }
-} catch (err) {
-  console.error(`Error reading file stats: ${err.message}`)
-  process.exit(1)
-}
 
-let promptContent
-try {
-  promptContent = readFileSync(resolvedPath, 'utf8')
-} catch (err) {
-  console.error(`Error reading prompt file: ${err.message}`)
+  try {
+    const stat = statSync(resolvedPath)
+    if (!stat.isFile()) {
+      console.error(`Error: specified path is not a file: ${promptFilePath}`)
+      process.exit(1)
+    }
+  } catch (err) {
+    console.error(`Error reading file stats: ${err.message}`)
+    process.exit(1)
+  }
+
+  try {
+    promptContent = readFileSync(resolvedPath, 'utf8')
+  } catch (err) {
+    console.error(`Error reading prompt file: ${err.message}`)
+    process.exit(1)
+  }
+} else {
+  console.error('Error: no prompt specified. Provide a prompt file path or use -p/--prompt "<text>".')
+  printUsage()
   process.exit(1)
 }
 

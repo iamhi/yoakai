@@ -60,6 +60,12 @@ copilot plugin install iamhi/yoakai
 yoakai ./prompt.md
 ```
 
+### Run with a direct prompt string (-p or --prompt)
+
+```sh
+yoakai -p "Summarize git diff"
+```
+
 ### Run using GitHub Copilot CLI
 
 ```sh

@@ -90,7 +90,7 @@ function setupTestEnv() {
 }
 
 function runYoakai(args, cwd, env) {
-  return execFileSync('node', [yoakaiPath, ...args], {
+  return execFileSync(process.execPath, [yoakaiPath, ...args], {
     cwd,
     encoding: 'utf8',
     env
@@ -115,6 +115,29 @@ test('reads prompt file and passes content with -p and default flags', () => {
   assert.equal(loggedArgs[loggedArgs.indexOf('--model') + 1], 'gemini-3.8-flash')
   assert.ok(loggedArgs.includes('--effort'))
   assert.equal(loggedArgs[loggedArgs.indexOf('--effort') + 1], 'high')
+})
+
+test('accepts inline prompt with -p without requiring a file', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+
+  const output = runYoakai(['-p', 'Direct inline prompt text'], baseDir, env)
+  assert.match(output, /mock agy execution successful/)
+
+  const loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs[1], 'Direct inline prompt text')
+  assert.ok(loggedArgs.includes('--dangerously-skip-permissions'))
+})
+
+test('accepts inline prompt with --prompt without requiring a file', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+
+  const output = runYoakai(['--prompt', 'Alternative prompt flag text'], baseDir, env)
+  assert.match(output, /mock agy execution successful/)
+
+  const loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.equal(loggedArgs[0], '-p')
+  assert.equal(loggedArgs[1], 'Alternative prompt flag text')
 })
 
 test('respects --no-permissions and omits --dangerously-skip-permissions', () => {
@@ -547,6 +570,3 @@ test('dynamically resolves default model in config based on active harness', () 
   const overrideConfig = JSON.parse(runYoakai(['config'], baseDir, env))
   assert.equal(overrideConfig.model, 'o3-mini')
 })
-
-
-
