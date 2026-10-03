@@ -23,7 +23,11 @@ if [[ -n "$MOCK_LOG_FILE" ]]; then
   printf '%s\\n' "$@" > "$MOCK_LOG_FILE"
 fi
 
-echo "mock agy execution successful"
+if [[ -n "$MOCK_AGY_OUTPUT" ]]; then
+  echo "$MOCK_AGY_OUTPUT"
+else
+  echo "mock agy execution successful"
+fi
 `
 
 const mockCopilotScript = `#!/usr/bin/env bash
@@ -41,7 +45,11 @@ if [[ -n "$MOCK_COPILOT_LOG_FILE" ]]; then
   printf '%s\\n' "$@" > "$MOCK_COPILOT_LOG_FILE"
 fi
 
-echo "mock copilot execution successful"
+if [[ -n "$MOCK_COPILOT_OUTPUT" ]]; then
+  echo "$MOCK_COPILOT_OUTPUT"
+else
+  echo "mock copilot execution successful"
+fi
 `
 
 const mockClaudeScript = `#!/usr/bin/env bash
@@ -59,7 +67,11 @@ if [[ -n "$MOCK_CLAUDE_LOG_FILE" ]]; then
   printf '%s\\n' "$@" > "$MOCK_CLAUDE_LOG_FILE"
 fi
 
-echo "mock claude execution successful"
+if [[ -n "$MOCK_CLAUDE_OUTPUT" ]]; then
+  echo "$MOCK_CLAUDE_OUTPUT"
+else
+  echo "mock claude execution successful"
+fi
 `
 
 function setupTestEnv() {
@@ -570,3 +582,112 @@ test('dynamically resolves default model in config based on active harness', () 
   const overrideConfig = JSON.parse(runYoakai(['config'], baseDir, env))
   assert.equal(overrideConfig.model, 'o3-mini')
 })
+
+test('supports unified --conversation flag mapping to --conversation on agy', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Continue conversation', 'utf8')
+
+  runYoakai(['prompt.md', '--conversation', 'conv-12345'], baseDir, env)
+
+  const loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--conversation'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--conversation') + 1], 'conv-12345')
+})
+
+test('supports unified --conversation flag mapping to --resume on copilot', () => {
+  const { baseDir, copilotLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Continue copilot conversation', 'utf8')
+
+  runYoakai(['prompt.md', '--harness', 'copilot', '--conversation', 'copilot-session-abc'], baseDir, env)
+
+  const loggedArgs = readFileSync(copilotLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--resume'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--resume') + 1], 'copilot-session-abc')
+  assert.equal(loggedArgs.includes('--conversation'), false)
+})
+
+test('supports unified --conversation flag mapping to --resume on claude', () => {
+  const { baseDir, claudeLogFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Continue claude conversation', 'utf8')
+
+  runYoakai(['prompt.md', '--harness', 'claude', '--conversation', 'claude-session-xyz'], baseDir, env)
+
+  const loggedArgs = readFileSync(claudeLogFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--resume'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--resume') + 1], 'claude-session-xyz')
+  assert.equal(loggedArgs.includes('--conversation'), false)
+})
+
+test('supports --conversation=<id> syntax and --coversation alias', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Test syntax', 'utf8')
+
+  runYoakai(['prompt.md', '--conversation=conv-eq-999'], baseDir, env)
+  let loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--conversation'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--conversation') + 1], 'conv-eq-999')
+
+  runYoakai(['prompt.md', '--coversation', 'conv-typo-888'], baseDir, env)
+  loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--conversation'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--conversation') + 1], 'conv-typo-888')
+})
+
+test('supports --resume <id> mapping to --conversation on agy', () => {
+  const { baseDir, logFile, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Resume agy', 'utf8')
+
+  runYoakai(['prompt.md', '--resume', 'session-to-conv'], baseDir, env)
+
+  const loggedArgs = readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+  assert.ok(loggedArgs.includes('--conversation'))
+  assert.equal(loggedArgs[loggedArgs.indexOf('--conversation') + 1], 'session-to-conv')
+})
+
+test('fails with descriptive error when --conversation is missing an ID', () => {
+  const { baseDir, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'Missing id', 'utf8')
+
+  assert.throws(
+    () => runYoakai(['prompt.md', '--conversation'], baseDir, env),
+    (err) => {
+      assert.match(err.stderr, /missing conversation ID for --conversation/)
+      assert.equal(err.status, 1)
+      return true
+    }
+  )
+})
+
+test('normalizes JSON output to include conversation_id across harnesses', () => {
+  const { baseDir, env } = setupTestEnv()
+  const promptFile = join(baseDir, 'prompt.md')
+  writeFileSync(promptFile, 'JSON test', 'utf8')
+
+  // Claude outputs session_id -> yoakai normalizes and adds conversation_id
+  const claudeJson = JSON.stringify({ session_id: 'claude-uuid-1234', result: 'All good' })
+  const claudeOutput = runYoakai(
+    ['prompt.md', '--harness', 'claude', '--output-format', 'json'],
+    baseDir,
+    { ...env, MOCK_CLAUDE_OUTPUT: claudeJson }
+  )
+  const parsedClaude = JSON.parse(claudeOutput)
+  assert.equal(parsedClaude.conversation_id, 'claude-uuid-1234')
+  assert.equal(parsedClaude.session_id, 'claude-uuid-1234')
+
+  // Agy outputs conversation_id -> yoakai preserves conversation_id
+  const agyJson = JSON.stringify({ conversation_id: 'agy-uuid-5678', response: 'Hello' })
+  const agyOutput = runYoakai(
+    ['prompt.md', '--harness', 'agy', '--output-format', 'json'],
+    baseDir,
+    { ...env, MOCK_AGY_OUTPUT: agyJson }
+  )
+  const parsedAgy = JSON.parse(agyOutput)
+  assert.equal(parsedAgy.conversation_id, 'agy-uuid-5678')
+})
+

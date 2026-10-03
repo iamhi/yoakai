@@ -89,7 +89,7 @@ const HARNESS_ADAPTERS = {
     command: (win) => (win ? 'agy.cmd' : 'agy'),
     displayName: 'Google Antigravity CLI',
     defaultModel: 'gemini-3.8-flash',
-    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, conversationId, forwardedArgs }) => {
       const args = ['-p', promptContent]
       if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
         args.push('--dangerously-skip-permissions')
@@ -99,6 +99,9 @@ const HARNESS_ADAPTERS = {
         args.push('--effort', activeEffort)
       }
       args.push('--output-format', activeOutputFormat)
+      if (conversationId && !forwardedArgs.includes('--conversation')) {
+        args.push('--conversation', conversationId)
+      }
       args.push(...forwardedArgs)
       return args
     }
@@ -107,7 +110,7 @@ const HARNESS_ADAPTERS = {
     command: (win) => (win ? 'copilot.cmd' : 'copilot'),
     displayName: 'GitHub Copilot CLI',
     defaultModel: 'gpt-4o',
-    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, conversationId, forwardedArgs }) => {
       const args = ['-p', promptContent]
       if (!forwardedArgs.includes('--no-ask-user')) {
         args.push('--no-ask-user')
@@ -123,6 +126,9 @@ const HARNESS_ADAPTERS = {
       if (activeModel) {
         args.push('--model', normalizeModel(activeModel))
       }
+      if (conversationId && !forwardedArgs.includes('--resume')) {
+        args.push('--resume', conversationId)
+      }
       args.push(...forwardedArgs)
       return args
     }
@@ -131,7 +137,7 @@ const HARNESS_ADAPTERS = {
     command: (win) => (win ? 'claude.cmd' : 'claude'),
     displayName: 'Claude Code CLI',
     defaultModel: 'claude-3-7-sonnet',
-    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, forwardedArgs }) => {
+    buildArgs: ({ promptContent, skipPermissions, activeModel, activeEffort, activeOutputFormat, conversationId, forwardedArgs }) => {
       const args = ['-p', promptContent]
       if (skipPermissions && !forwardedArgs.includes('--dangerously-skip-permissions')) {
         args.push('--dangerously-skip-permissions')
@@ -144,6 +150,9 @@ const HARNESS_ADAPTERS = {
       }
       if (activeOutputFormat && !forwardedArgs.includes('--output-format')) {
         args.push('--output-format', activeOutputFormat)
+      }
+      if (conversationId && !forwardedArgs.includes('--resume') && !forwardedArgs.includes('-r')) {
+        args.push('--resume', conversationId)
       }
       args.push(...forwardedArgs)
       return args
@@ -246,6 +255,7 @@ const printUsage = () => {
 
 Options:
   -p, --prompt <text>                      Direct prompt string (alternative to prompt file)
+  --conversation <id>                      Resume previous conversation by ID across all harnesses
   --output-format <text|json|stream-json>  Output format (default: text)
   --harness <agy|copilot|claude>           AI harness (default: agy)
   --model <name|slug>                      Model name/slug (default: gemini-3.8-flash)
@@ -257,6 +267,8 @@ Options:
 Examples:
   yoakai ./prompt.md
   yoakai -p "Summarize git diff"
+  yoakai ./prompt.md --conversation 456a53a7-b6aa-4823-ba0f-8eb884ac1881
+  yoakai -p "Follow up" --conversation 456a53a7-b6aa-4823-ba0f-8eb884ac1881
   yoakai ./prompt.md --model "GPT-6 Luna"
   yoakai ./prompt.md --model claude-3-7-sonnet
   yoakai config.model "GPT-6 Luna"
@@ -442,6 +454,7 @@ let cliModel = null
 let cliEffort = null
 let cliOutputFormat = null
 let cliHarness = null
+let cliConversationId = null
 
 const config = loadConfig()
 
@@ -455,6 +468,62 @@ for (let i = 0; i < rawArgs.length; i++) {
   if (arg === '-p' || arg === '--prompt') {
     inlinePrompt = rawArgs[i + 1]
     skipNext = true
+    continue
+  }
+
+  if (arg.startsWith('--prompt=')) {
+    inlinePrompt = arg.slice('--prompt='.length)
+    continue
+  }
+
+  if (arg === '--conversation' || arg === '--conversation-id' || arg === '--coversation' || arg === '--resume') {
+    const val = rawArgs[i + 1]
+    if (!val || val.startsWith('-')) {
+      console.error('Error: missing conversation ID for --conversation')
+      process.exit(1)
+    }
+    cliConversationId = val
+    skipNext = true
+    continue
+  }
+
+  if (arg.startsWith('--conversation=')) {
+    const val = arg.slice('--conversation='.length)
+    if (!val) {
+      console.error('Error: missing conversation ID for --conversation')
+      process.exit(1)
+    }
+    cliConversationId = val
+    continue
+  }
+
+  if (arg.startsWith('--conversation-id=')) {
+    const val = arg.slice('--conversation-id='.length)
+    if (!val) {
+      console.error('Error: missing conversation ID for --conversation')
+      process.exit(1)
+    }
+    cliConversationId = val
+    continue
+  }
+
+  if (arg.startsWith('--coversation=')) {
+    const val = arg.slice('--coversation='.length)
+    if (!val) {
+      console.error('Error: missing conversation ID for --conversation')
+      process.exit(1)
+    }
+    cliConversationId = val
+    continue
+  }
+
+  if (arg.startsWith('--resume=')) {
+    const val = arg.slice('--resume='.length)
+    if (!val) {
+      console.error('Error: missing conversation ID for --conversation')
+      process.exit(1)
+    }
+    cliConversationId = val
     continue
   }
 
@@ -474,9 +543,19 @@ for (let i = 0; i < rawArgs.length; i++) {
     continue
   }
 
+  if (arg.startsWith('--model=')) {
+    cliModel = arg.slice('--model='.length)
+    continue
+  }
+
   if (arg === '--effort') {
     cliEffort = rawArgs[i + 1]
     skipNext = true
+    continue
+  }
+
+  if (arg.startsWith('--effort=')) {
+    cliEffort = arg.slice('--effort='.length)
     continue
   }
 
@@ -486,9 +565,19 @@ for (let i = 0; i < rawArgs.length; i++) {
     continue
   }
 
+  if (arg.startsWith('--output-format=')) {
+    cliOutputFormat = arg.slice('--output-format='.length)
+    continue
+  }
+
   if (arg === '--harness') {
     cliHarness = rawArgs[i + 1]
     skipNext = true
+    continue
+  }
+
+  if (arg.startsWith('--harness=')) {
+    cliHarness = arg.slice('--harness='.length)
     continue
   }
 
@@ -559,13 +648,16 @@ const targetArgs = harnessDef.buildArgs({
   activeModel,
   activeEffort,
   activeOutputFormat,
+  conversationId: cliConversationId,
   forwardedArgs
 })
 
+const isJson = activeOutputFormat === 'json'
 const result = spawnSync(targetCmd, targetArgs, {
-  stdio: 'inherit',
+  stdio: isJson ? ['inherit', 'pipe', 'inherit'] : 'inherit',
   cwd: process.cwd(),
-  shell: isWindows
+  shell: isWindows,
+  encoding: isJson ? 'utf8' : undefined
 })
 
 if (result.error) {
@@ -575,6 +667,37 @@ if (result.error) {
     console.error(`Error executing ${activeHarness}: ${result.error.message}`)
   }
   process.exit(1)
+}
+
+if (isJson && result.stdout) {
+  let output = result.stdout
+  try {
+    const data = JSON.parse(output.trim())
+    if (data && typeof data === 'object') {
+      const convId = data.conversation_id || data.session_id || data.sessionId || data.conversationId || data.uuid || data.id
+      if (convId && !data.conversation_id) {
+        data.conversation_id = convId
+      }
+      output = JSON.stringify(data, null, 2) + '\n'
+    }
+  } catch {
+    const match = output.match(/\{[\s\S]*\}/)
+    if (match) {
+      try {
+        const data = JSON.parse(match[0])
+        if (data && typeof data === 'object') {
+          const convId = data.conversation_id || data.session_id || data.sessionId || data.conversationId || data.uuid || data.id
+          if (convId && !data.conversation_id) {
+            data.conversation_id = convId
+          }
+          output = JSON.stringify(data, null, 2) + '\n'
+        }
+      } catch {
+        // Fall back to original stdout
+      }
+    }
+  }
+  process.stdout.write(output)
 }
 
 process.exit(result.status ?? 0)

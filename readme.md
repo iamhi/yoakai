@@ -79,10 +79,20 @@ yoakai ./prompt.md --harness copilot --model o3-mini
 yoakai ./prompt.md --harness agy --model gemini-3.8-flash-high --effort high
 ```
 
-### JSON output format
+### JSON output format (with unified conversation_id)
 
 ```sh
 yoakai ./prompt.md --output-format json
+```
+All harnesses consistently output a `conversation_id` in JSON mode (`session_id` from Claude/Copilot is automatically mapped to `conversation_id`).
+
+### Resume a conversation by ID across harnesses
+
+Pass `--conversation <id>` to resume a conversation. Yoakai automatically maps it to each harness's native CLI parameter (`--conversation <id>` for `agy`, `--resume <id>` for `copilot` and `claude`):
+
+```sh
+yoakai ./prompt.md --conversation <id>
+yoakai -p "Follow up question" --conversation <id>
 ```
 
 ### Disable auto-approved permissions

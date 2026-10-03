@@ -63,7 +63,8 @@ yoakai config
 - `<prompt-file-path>`: Relative path to the markdown or text prompt file.
 - `--harness <copilot|agy|claude>`: AI harness to use (defaults to `agy` or configured default).
 - `--model <name|slug>`: Model to use (defaults to harness default or configured default).
-- `--output-format <text|json|stream-json>`: Output format.
+- `--output-format <text|json|stream-json>`: Output format (JSON mode standardizes a consistent `conversation_id` across all harnesses).
+- `--conversation <id>`: Resume previous conversation by ID across all harnesses (maps to `--conversation` for `agy`, `--resume` for `copilot` and `claude`).
 - `--effort <low|medium|high>`: Reasoning effort to use (defaults to `high` or configured default).
 - `--no-permissions`, `--no-skip-permissions`: Do not auto-approve permissions (`--dangerously-skip-permissions` for `agy`/`claude`, `--allow-all-tools` for `copilot`).
 - Extra flags (e.g. `--cloud`, `--allow-tool <tool>`, `--continue`) are forwarded directly to the selected harness CLI.

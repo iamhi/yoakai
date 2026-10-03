@@ -31,10 +31,11 @@ No build step, no lint config, no bundler. ESM only (`"type": "module"`), Node >
    - Manages configuration (`~/.config/yoakai/config.json` and local `.yoakairc` / `.yoakai.json`).
    - Handles `yoakai config.model <value>`, `yoakai config.harness <value>` (`agy`, `copilot`, `claude`), `yoakai config.effort <value>`, `yoakai models [--json]`, `yoakai harnesses`.
    - Uses `HARNESS_ADAPTERS` to translate arguments:
-     - `agy`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`
-     - `copilot`: `-p "<content>"`, `--no-ask-user`, `--allow-all-tools`, `-s`, `--model`, `--output-format`
-     - `claude`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`
-   - Spawns the harness with `stdio: 'inherit'` to preserve exit codes and real-time streaming output.
+     - `agy`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`, `--conversation`
+     - `copilot`: `-p "<content>"`, `--no-ask-user`, `--allow-all-tools`, `-s`, `--model`, `--output-format`, `--resume`
+     - `claude`: `-p "<content>"`, `--dangerously-skip-permissions`, `--model`, `--effort`, `--output-format`, `--resume`
+   - Normalizes JSON output across harnesses to guarantee a consistent `conversation_id` key.
+   - Spawns the harness with `stdio: 'inherit'` (or buffered for JSON normalization) to preserve exit codes and streaming output.
 
 2. **Copilot Plugin & Skills**:
    - `plugin.json` — Agent Plugins 1.0 manifest for GitHub Copilot.
